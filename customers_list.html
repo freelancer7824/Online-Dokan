@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customers List</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      box-sizing: border-box;
+      background: #f4f4f4;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header h1 {
+      margin: 0;
+    }
+
+    .search-bar {
+      width: 300px;
+      max-width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    .add-btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    .customer-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 5px;
+      min-width: 600px;
+    }
+
+    .customer-table th {
+      background: #34495e;
+      color: white;
+      padding: 12px;
+      text-align: left;
+    }
+
+    .customer-table td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .customer-table tr:hover {
+      background: #f5f7fa;
+    }
+
+    .baki-positive {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+
+    .baki-negative {
+      color: #2ecc71;
+      font-weight: bold;
+    }
+
+    .action-btn {
+      padding: 5px 10px;
+      margin-right: 5px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .view-btn {
+      background: #3498db;
+      color: white;
+    }
+
+    .delete-btn {
+      background: #e74c3c;
+      color: white;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .search-bar,
+      .add-btn {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .add-btn {
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .customer-table th,
+      .customer-table td {
+        padding: 8px;
+        font-size: 14px;
+      }
+
+      .action-btn {
+        padding: 4px 6px;
+        font-size: 12px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Customers</h1>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+      <input type="text" class="search-bar" placeholder="Search customers..." id="searchInput">
+      <a href="add_customers.html" class="add-btn">+ Add Customer</a>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="customer-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Address</th>
+          <th>Baki</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="customerTableBody">
+        <tr>
+          <td colspan="5">Loading customers...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, child, remove } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "login_signup.html";
+        return;
+      }
+
+      const uid = user.uid;
+      const customerRef = ref(db, `users/${uid}/customers`);
+      const customerSnap = await get(customerRef);
+      const tableBody = document.getElementById("customerTableBody");
+
+      if (customerSnap.exists()) {
+        const customers = customerSnap.val();
+        tableBody.innerHTML = '';
+
+        for (const [customerId, customerData] of Object.entries(customers)) {
+          let totalBaki = 0;
+          let totalPayment = 0;
+
+          const transactionsRef = ref(db, `users/${uid}/customers/${customerId}/transactions`);
+          const transactionsSnap = await get(transactionsRef);
+
+          if (transactionsSnap.exists()) {
+            const transactions = transactionsSnap.val();
+            Object.values(transactions).forEach(txn => {
+              const amount = parseFloat(txn.amount);
+              if (txn.type === "baki") totalBaki += amount;
+              else if (txn.type === "payment") totalPayment += amount;
+            });
+          }
+
+          const netBaki = totalBaki - totalPayment;
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${customerData.name}</td>
+            <td>${customerData.phone || 'N/A'}</td>
+            <td>${customerData.address || 'N/A'}</td>
+            <td class="${netBaki > 0 ? 'baki-positive' : 'baki-negative'}">
+              ৳${Math.abs(netBaki).toFixed(2)}
+            </td>
+            <td>
+              <button class="action-btn view-btn" onclick="viewCustomer('${customerId}')">View</button>
+              <button class="action-btn delete-btn" onclick="deleteCustomer('${customerId}', '${customerData.name}')">Delete</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        }
+      } else {
+        tableBody.innerHTML = '<tr><td colspan="5">No customers found. Add your first customer!</td></tr>';
+      }
+    });
+
+    document.getElementById("searchInput").addEventListener("input", function () {
+      const searchTerm = this.value.toLowerCase();
+      const rows = document.querySelectorAll("#customerTableBody tr");
+
+      rows.forEach(row => {
+        const name = row.cells[0].textContent.toLowerCase();
+        const phone = row.cells[1].textContent.toLowerCase();
+        const address = row.cells[2].textContent.toLowerCase();
+
+        if (name.includes(searchTerm) || phone.includes(searchTerm) || address.includes(searchTerm)) {
+          row.style.display = "";
+        } else {
+          row.style.display = "none";
+        }
+      });
+    });
+
+    window.viewCustomer = function (customerId) {
+      window.location.href = `customers_info.html?cid=${customerId}`;
+    };
+
+    window.deleteCustomer = function (customerId, customerName) {
+      if (confirm(`Are you sure you want to delete ${customerName}?`)) {
+        onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            try {
+              await remove(ref(db, `users/${user.uid}/customers/${customerId}`));
+              alert("Customer deleted successfully");
+              location.reload();
+            } catch (error) {
+              console.error("Error deleting customer:", error);
+              alert("Failed to delete customer");
+            }
+          }
+        });
+      }
+    };
+  </script>
+</body>
+</html>

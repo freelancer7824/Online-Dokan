@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customer Transactions</title>
+  <style>
+    :root {
+      --primary-color: #3498db;
+      --danger-color: #e74c3c;
+      --success-color: #2ecc71;
+      --dark-color: #34495e;
+      --light-color: #f4f4f4;
+      --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--light-color);
+      color: #333;
+    }
+
+    .back-btn {
+      display: inline-block;
+      margin-bottom: 15px;
+      padding: 8px 15px;
+      background: var(--dark-color);
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    .customer-details, .transactions-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .customer-header {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .customer-name {
+      font-size: 24px;
+      color: var(--dark-color);
+    }
+
+    .customer-balance {
+      font-size: 28px;
+      font-weight: bold;
+      padding: 10px 20px;
+      border-radius: 5px;
+      background: #f8f9fa;
+    }
+
+    .balance-positive { color: var(--danger-color); }
+    .balance-negative { color: var(--success-color); }
+
+    .customer-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .info-label {
+      font-weight: bold;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .info-value {
+      font-size: 16px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+
+    .transactions-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .transaction-item {
+      padding: 15px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .transaction-header {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .transaction-date {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .transaction-note {
+      font-size: 14px;
+      color: #555;
+    }
+
+    .transaction-amount {
+      font-weight: bold;
+      font-size: 18px;
+      min-width: 100px;
+      text-align: right;
+    }
+
+    .amount-positive { color: var(--danger-color); }
+    .amount-negative { color: var(--success-color); }
+
+    .transaction-calculation {
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    .add-transaction {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .transaction-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    .transaction-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .baki-btn { background: var(--danger-color); color: white; }
+    .payment-btn { background: var(--success-color); color: white; }
+
+    @media (max-width: 768px) {
+      .transaction-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .transaction-amount {
+        text-align: left;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a href="customers_list.html" class="back-btn">← Back to Customers</a>
+
+  <div class="customer-details">
+    <div class="customer-header">
+      <h1 class="customer-name" id="customerName">Loading...</h1>
+      <div class="customer-balance" id="customerBalance">৳0.00</div>
+    </div>
+    <div class="customer-info" id="customerInfo"></div>
+  </div>
+
+  <div class="transactions-section">
+    <h2 class="section-title">Transaction History</h2>
+    <div class="transactions-list" id="transactionsList"></div>
+
+    <div class="add-transaction">
+      <input type="number" id="transactionAmount" class="transaction-input" placeholder="Amount">
+      <input type="text" id="transactionNote" class="transaction-input" placeholder="Note (optional)">
+      <button class="transaction-btn baki-btn" id="addBakiBtn">Add Baki</button>
+      <button class="transaction-btn payment-btn" id="addPaymentBtn">Add Payment</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerId = urlParams.get('cid');
+
+    if (!customerId) window.location.href = "customers_list.html";
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) return window.location.href = "login_signup.html";
+      const uid = user.uid;
+      loadCustomerDetails(uid, customerId);
+      loadTransactions(uid, customerId);
+      setupTransactionButtons(uid, customerId);
+    });
+
+    function loadCustomerDetails(uid, customerId) {
+      const refCust = ref(db, `users/${uid}/customers/${customerId}`);
+      onValue(refCust, (snapshot) => {
+        const c = snapshot.val();
+        document.getElementById('customerName').textContent = c.name || 'No Name';
+        document.getElementById('customerInfo').innerHTML = `
+          <div><span class="info-label">Phone:</span> <span class="info-value">${c.phone || 'N/A'}</span></div>
+          <div><span class="info-label">Address:</span> <span class="info-value">${c.address || 'N/A'}</span></div>
+          <div><span class="info-label">Email:</span> <span class="info-value">${c.email || 'N/A'}</span></div>
+          <div><span class="info-label">Created:</span> <span class="info-value">${new Date(c.createdAt || Date.now()).toLocaleDateString()}</span></div>
+        `;
+      });
+    }
+
+    function loadTransactions(uid, customerId) {
+  const refTrans = ref(db, `users/${uid}/customers/${customerId}/transactions`);
+  onValue(refTrans, (snapshot) => {
+    const data = snapshot.val();
+    const list = document.getElementById('transactionsList');
+    let runningBalance = 0;
+    if (!data) {
+      list.innerHTML = '<div class="transaction-item">No transactions yet</div>';
+      updateBalanceDisplay(0);
+      return;
+    }
+    
+    const arr = Object.entries(data).map(([id, txn]) => ({ id, ...txn }))
+      .sort((a, b) => a.timestamp - b.timestamp); // oldest to newest
+    const balanceMap = {};
+    arr.forEach(t => {
+      const amt = parseFloat(t.amount);
+      runningBalance += t.type === "baki" ? amt : -amt;
+      balanceMap[t.id] = runningBalance;
+    });
+    
+    const sorted = [...arr].sort((a, b) => a.timestamp - b.timestamp); // again oldest to newest
+    list.innerHTML = '';
+    sorted.forEach((t, i) => {
+      const amt = parseFloat(t.amount);
+      const d = new Date(t.timestamp);
+      const prev = balanceMap[t.id] - (t.type === 'baki' ? amt : -amt);
+      const curr = balanceMap[t.id];
+      const serialNo = i + 1; // ascending
+      
+      const div = document.createElement('div');
+      div.className = 'transaction-item';
+      div.innerHTML = `
+        <div class="transaction-header">
+          <div>
+            <strong>${serialNo}</strong><br>
+            <strong>${t.type === 'baki' ? 'Baki Added' : 'Payment Received'}</strong>
+            <div class="transaction-date">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</div>
+            ${t.note ? `<div class="transaction-note">${t.note}</div>` : ''}
+          </div>
+          <div class="transaction-amount ${t.type === 'baki' ? 'amount-positive' : 'amount-negative'}">
+            ${t.type === 'baki' ? '+' : '-'}৳${amt.toFixed(2)}
+          </div>
+        </div>
+        <div class="transaction-calculation">
+          Previous: ৳${prev.toFixed(2)} &nbsp;
+          ${t.type === 'baki' ? '+' : '-'} ৳${amt.toFixed(2)} &nbsp;
+          = Current: ৳${curr.toFixed(2)}
+        </div>
+      `;
+      list.appendChild(div);
+    });
+    
+    updateBalanceDisplay(runningBalance);
+  });
+}
+
+    function updateBalanceDisplay(balance) {
+      const el = document.getElementById('customerBalance');
+      el.textContent = `৳${Math.abs(balance).toFixed(2)}`;
+      el.className = balance > 0 ? 'customer-balance balance-positive' : 
+                    balance < 0 ? 'customer-balance balance-negative' : 
+                    'customer-balance';
+    }
+
+    function setupTransactionButtons(uid, customerId) {
+      document.getElementById('addBakiBtn').addEventListener('click', () => {
+        addTransaction(uid, customerId, 'baki');
+      });
+      document.getElementById('addPaymentBtn').addEventListener('click', () => {
+        addTransaction(uid, customerId, 'payment');
+      });
+    }
+
+    function addTransaction(uid, customerId, type) {
+      const amt = parseFloat(document.getElementById('transactionAmount').value);
+      const note = document.getElementById('transactionNote').value.trim();
+
+      if (isNaN(amt) || amt <= 0) return alert("Enter valid amount");
+
+      const newTxn = {
+        amount: amt,
+        type: type,
+        note: note || null,
+        timestamp: Date.now()
+      };
+
+      const refTrans = ref(db, `users/${uid}/customers/${customerId}/transactions`);
+      push(refTrans, newTxn).then(() => {
+        document.getElementById('transactionAmount').value = '';
+        document.getElementById('transactionNote').value = '';
+      }).catch(err => {
+        alert("Error: " + err.message);
+      });
+    }
+  </script>
+</body>
+</html>

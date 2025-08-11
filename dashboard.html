@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .stat-card h3 {
+      margin-top: 0;
+      color: #555;
+      font-size: 16px;
+    }
+
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+
+    .stat-card a {
+      text-decoration: none;
+      color: #3498db;
+    }
+
+    .recent-activity {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .recent-activity h2 {
+      margin-top: 0;
+    }
+
+    .activity-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-header">
+    <h1>Dashboard</h1>
+    <div id="currentDate"></div>
+  </div>
+
+  <div class="stats-cards">
+    <div class="stat-card">
+      <h3>Total Customers</h3>
+      <div class="value" id="totalCustomers">0</div>
+      <a href="customers_list.html">View All</a>
+    </div>
+
+    <div class="stat-card">
+      <h3>Total Baki</h3>
+      <div class="value" id="totalBaki">৳0</div>
+      <a href="reports.html">View Report</a>
+    </div>
+
+    <div class="stat-card">
+      <h3>Recent Transactions</h3>
+      <div class="value" id="recentTransactions">0</div>
+      <a href="add_transections.html">Add New</a>
+    </div>
+  </div>
+
+  <div class="recent-activity" style="display:none">
+    <h2>Recent Activity</h2>
+    <div id="activityList">
+      <p>Loading activities...</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // Show today's date
+    document.getElementById("currentDate").textContent = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+
+      const uid = user.uid;
+      const customersRef = ref(db, `users/${uid}/customers`);
+      const customersSnap = await get(customersRef);
+
+      let totalCustomers = 0;
+      let netBalance = 0;
+      let activities = [];
+
+      if (customersSnap.exists()) {
+        const customers = customersSnap.val();
+        totalCustomers = Object.keys(customers).length;
+
+        for (const customerId in customers) {
+          const customer = customers[customerId];
+          const transactionsRef = ref(db, `users/${uid}/customers/${customerId}/transactions`);
+          const transactionsSnap = await get(transactionsRef);
+
+          if (transactionsSnap.exists()) {
+            const transactions = transactionsSnap.val();
+            for (const txnId in transactions) {
+              const txn = transactions[txnId];
+              const amount = parseFloat(txn.amount) || 0;
+
+              if (txn.type === "baki") netBalance += amount;
+              else if (txn.type === "payment") netBalance -= amount;
+
+              activities.push({
+                ...txn,
+                customerId,
+                txnId,
+                customerName: customer.name || "Unknown"
+              });
+            }
+          }
+        }
+
+        // Update dashboard cards
+        document.getElementById("totalCustomers").textContent = totalCustomers;
+        document.getElementById("totalBaki").textContent = `৳${netBalance.toFixed(2)}`;
+        document.getElementById("recentTransactions").textContent = activities.length;
+
+        // Show top 5 recent activities
+        activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        displayActivities(activities.slice(0, 5));
+      } else {
+        // No customers
+        document.getElementById("totalCustomers").textContent = "0";
+        document.getElementById("totalBaki").textContent = "৳0.00";
+        document.getElementById("recentTransactions").textContent = "0";
+        displayActivities([]);
+      }
+    });
+
+    function displayActivities(activities) {
+      const activityList = document.getElementById("activityList");
+
+      if (activities.length === 0) {
+        activityList.innerHTML = "<p>No recent activities found.</p>";
+        return;
+      }
+
+      activityList.innerHTML = '';
+      activities.forEach(activity => {
+        const item = document.createElement("div");
+        item.className = "activity-item";
+
+        const typeText = activity.type === "baki" ? "Baki Added" : "Payment Received";
+        const amountText = activity.type === "baki"
+          ? `-৳${parseFloat(activity.amount).toFixed(2)}`
+          : `+৳${parseFloat(activity.amount).toFixed(2)}`;
+        const color = activity.type === "baki" ? "#e74c3c" : "#2ecc71";
+
+        item.innerHTML = `
+          <div>
+            <strong>${activity.customerName}</strong>
+            <div>${typeText}: ${activity.description || 'No description'}</div>
+          </div>
+          <div style="color: ${color}; font-weight: bold;">
+            ${amountText}
+          </div>
+        `;
+
+        activityList.appendChild(item);
+      });
+    }
+  </script>
+</body>
+</html>

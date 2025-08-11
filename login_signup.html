@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Dokan Management</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #3498db, #2c3e50);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+    }
+    .auth-container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      width: 400px;
+      max-width: 90%;
+      overflow: hidden;
+    }
+    .auth-header {
+      background: #2c3e50;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .auth-header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .auth-body {
+      padding: 30px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #555;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    .auth-btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .auth-btn:hover {
+      background: #2980b9;
+    }
+    .auth-footer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .auth-toggle {
+      color: #3498db;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .auth-toggle:hover {
+      text-decoration: underline;
+    }
+    .hidden {
+      display: none;
+    }
+    .message {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .customer-login-link {
+      display: block;
+      margin-top: 15px;
+      color: #16a085;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .customer-login-link:hover {
+      text-decoration: underline;
+      color: #13856e;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1>Dokan Management</h1>
+    </div>
+    <div class="auth-body">
+      <!-- Login Form -->
+      <div id="loginForm">
+        <div id="loginMessage" class="message hidden"></div>
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" placeholder="Enter your email">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="Enter your password">
+        </div>
+        <button class="auth-btn" onclick="login()">Login</button>
+        <div class="auth-footer">
+          <span class="auth-toggle" onclick="showForm('signup')">Create an account</span> | 
+          <span class="auth-toggle" onclick="showForm('forgot')">Forgot password?</span>
+          <a href="customer_notice_board.html" class="customer-login-link">Customer Login</a>
+        </div>
+      </div>
+
+      <!-- Signup Form -->
+      <div id="signupForm" class="hidden">
+        <div id="signupMessage" class="message hidden"></div>
+        <div class="form-group">
+          <label for="signupShopName">Shop Name</label>
+          <input type="text" id="signupShopName" placeholder="Enter your shop name">
+        </div>
+        <div class="form-group">
+          <label for="signupEmail">Email</label>
+          <input type="email" id="signupEmail" placeholder="Enter your email">
+        </div>
+        <div class="form-group">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" placeholder="Create a password">
+        </div>
+        <button class="auth-btn" onclick="signup()">Sign Up</button>
+        <div class="auth-footer">
+          <span class="auth-toggle" onclick="showForm('login')">Already have an account? Login</span>
+          <a href="customer_notice_board.html" class="customer-login-link">Customer Login</a>
+        </div>
+      </div>
+
+      <!-- Forgot Password Form -->
+      <div id="forgotForm" class="hidden">
+        <div id="forgotMessage" class="message hidden"></div>
+        <div class="form-group">
+          <label for="forgotEmail">Email</label>
+          <input type="email" id="forgotEmail" placeholder="Enter your email">
+        </div>
+        <button class="auth-btn" onclick="forgotPassword()">Reset Password</button>
+        <div class="auth-footer">
+          <span class="auth-toggle" onclick="showForm('login')">Back to Login</span>
+          <a href="customer_notice_board.html" class="customer-login-link">Customer Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { 
+      getAuth, createUserWithEmailAndPassword, 
+      signInWithEmailAndPassword, sendPasswordResetEmail 
+    } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    window.showForm = function(form) {
+      document.getElementById("loginForm").classList.add("hidden");
+      document.getElementById("signupForm").classList.add("hidden");
+      document.getElementById("forgotForm").classList.add("hidden");
+      document.getElementById(form + "Form").classList.remove("hidden");
+      document.getElementById("loginMessage").classList.add("hidden");
+      document.getElementById("signupMessage").classList.add("hidden");
+      document.getElementById("forgotMessage").classList.add("hidden");
+    };
+
+    window.login = function() {
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+      const message = document.getElementById("loginMessage");
+      if (!email || !password) {
+        showMessage(message, "Please enter both email and password", "error");
+        return;
+      }
+      signInWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          const user = userCredential.user;
+          localStorage.setItem("userId", user.uid);
+          localStorage.setItem("userEmail", user.email);
+          window.location.href = "../index.html";
+        })
+        .catch((error) => {
+          showMessage(message, error.message, "error");
+        });
+    };
+
+    window.signup = function() {
+      const shopName = document.getElementById("signupShopName").value;
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      const message = document.getElementById("signupMessage");
+      if (!shopName || !email || !password) {
+        showMessage(message, "Please fill all fields", "error");
+        return;
+      }
+      if (password.length < 6) {
+        showMessage(message, "Password must be at least 6 characters", "error");
+        return;
+      }
+      createUserWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          const user = userCredential.user;
+          const userRef = ref(db, `users/${user.uid}`);
+          set(userRef, {
+            dokan_name: shopName,
+            email: email,
+            createdAt: new Date().toISOString()
+          }).then(() => {
+            const summaryRef = ref(db, `users/${user.uid}/summary`);
+            set(summaryRef, {
+              total_customers: 0,
+              total_baki: 0,
+              total_payment: 0,
+              net_balance: 0
+            }).then(() => {
+              localStorage.setItem("userId", user.uid);
+              localStorage.setItem("userEmail", user.email);
+              window.location.href = "../index.html";
+            });
+          });
+        })
+        .catch((error) => {
+          showMessage(message, error.message, "error");
+        });
+    };
+
+    window.forgotPassword = function() {
+      const email = document.getElementById("forgotEmail").value;
+      const message = document.getElementById("forgotMessage");
+      if (!email) {
+        showMessage(message, "Please enter your email", "error");
+        return;
+      }
+      sendPasswordResetEmail(auth, email)
+        .then(() => {
+          showMessage(message, "Password reset email sent. Check your inbox.", "success");
+        })
+        .catch((error) => {
+          showMessage(message, error.message, "error");
+        });
+    };
+
+    function showMessage(element, text, type) {
+      element.textContent = text;
+      element.className = `message ${type}`;
+      element.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>

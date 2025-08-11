@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop Profile</title>
+  <style>
+    .profile-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .profile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .profile-title {
+      font-size: 24px;
+      color: #2c3e50;
+      margin: 0;
+    }
+    
+    .edit-btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    .profile-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    .detail-card {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    
+    .detail-card h3 {
+      margin-top: 0;
+      color: #555;
+      font-size: 18px;
+    }
+    
+    .detail-item {
+      margin-bottom: 15px;
+    }
+    
+    .detail-label {
+      font-weight: 600;
+      color: #666;
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .detail-value {
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="profile-container">
+    <div class="profile-header">
+      <h1 class="profile-title">Shop Profile</h1>
+      <button class="edit-btn" onclick="editProfile()">Edit Profile</button>
+    </div>
+    
+    <div class="profile-details">
+      <div class="detail-card">
+        <h3>Basic Information</h3>
+        
+        <div class="detail-item">
+          <span class="detail-label">Shop Name</span>
+          <span class="detail-value" id="shopName">Loading...</span>
+        </div>
+        
+        <div class="detail-item">
+          <span class="detail-label">Email</span>
+          <span class="detail-value" id="shopEmail">Loading...</span>
+        </div>
+        
+        <div class="detail-item">
+          <span class="detail-label">Registration Date</span>
+          <span class="detail-value" id="regDate">Loading...</span>
+        </div>
+      </div>
+      
+      <div class="detail-card">
+        <h3>Business Information</h3>
+        
+        <div class="detail-item">
+          <span class="detail-label">EIN Number</span>
+          <span class="detail-value" id="einNumber">Loading...</span>
+        </div>
+        
+        <div class="detail-item">
+          <span class="detail-label">Total Customers</span>
+          <span class="detail-value" id="totalCustomers">Loading...</span>
+        </div>
+        
+        <div class="detail-item">
+          <span class="detail-label">Current Balance</span>
+          <span class="detail-value" id="currentBalance">Loading...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "../auth/login_signup.html";
+        return;
+      }
+
+      const uid = user.uid;
+      
+      // Load user data
+      const userRef = ref(db, `users/${uid}`);
+      const userSnap = await get(userRef);
+      
+      if (userSnap.exists()) {
+        const userData = userSnap.val();
+        
+        document.getElementById("shopName").textContent = userData.dokan_name || "Not set";
+        document.getElementById("shopEmail").textContent = user.email;
+        document.getElementById("einNumber").textContent = userData.dokan_ein || "Not set";
+        document.getElementById("regDate").textContent = 
+          new Date(userData.createdAt || Date.now()).toLocaleDateString();
+      }
+      
+      // Load summary data
+      const summaryRef = ref(db, `users/${uid}/summary`);
+      const summarySnap = await get(summaryRef);
+      
+      if (summarySnap.exists()) {
+        const summary = summarySnap.val();
+        document.getElementById("totalCustomers").textContent = summary.total_customers || 0;
+        
+        const balance = summary.net_balance || 0;
+        const balanceElement = document.getElementById("currentBalance");
+        balanceElement.textContent = `৳${Math.abs(balance).toFixed(2)}`;
+        balanceElement.style.color = balance > 0 ? "#e74c3c" : "#2ecc71";
+      }
+    });
+    
+    window.editProfile = function() {
+      alert("Edit profile functionality will be added soon!");
+    };
+  </script>
+</body>
+</html>

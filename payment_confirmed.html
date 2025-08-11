@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Payment Confirmation</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin-top: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .filter-section {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    select, input, button {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #2c3e50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background-color: #34495e;
+    }
+    button.primary {
+      background-color: #27ae60;
+    }
+    button.primary:hover {
+      background-color: #2ecc71;
+    }
+    button.danger {
+      background-color: #e74c3c;
+    }
+    button.danger:hover {
+      background-color: #c0392b;
+    }
+    .payment-request {
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #f9f9f9;
+    }
+    .payment-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .payment-title {
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .payment-meta {
+      font-size: 13px;
+      color: #666;
+    }
+    .payment-amount {
+      font-size: 18px;
+      font-weight: bold;
+      color: #27ae60;
+    }
+    .payment-status {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .status-pending {
+      background-color: #f39c12;
+      color: white;
+    }
+    .status-approved {
+      background-color: #27ae60;
+      color: white;
+    }
+    .status-rejected {
+      background-color: #e74c3c;
+      color: white;
+    }
+    .payment-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .customer-info {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed #ddd;
+      font-size: 14px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #777;
+    }
+    .empty-state i {
+      font-size: 40px;
+      margin-bottom: 15px;
+      color: #ddd;
+    }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin-top: 20px;
+    }
+    .pagination button {
+      padding: 5px 10px;
+      min-width: 30px;
+    }
+    .pagination button.active {
+      background-color: #2c3e50;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1><i class="fas fa-money-bill-wave"></i> Payment Confirmation</h1>
+      
+      <div class="filter-section">
+        <select id="filterStatus">
+          <option value="all">All Status</option>
+          <option value="pending" selected>Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search customer...">
+        <button id="btnRefresh"><i class="fas fa-sync-alt"></i> Refresh</button>
+      </div>
+      
+      <div id="paymentRequestsContainer">
+        <div class="empty-state">
+          <i class="fas fa-spinner fa-spin"></i>
+          <div>Loading payment requests...</div>
+        </div>
+      </div>
+      
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, update, push, set } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const filterStatus = document.getElementById('filterStatus');
+    const searchInput = document.getElementById('searchInput');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const paymentRequestsContainer = document.getElementById('paymentRequestsContainer');
+    const pagination = document.getElementById('pagination');
+
+    let currentUserUid = '';
+    let allPaymentRequests = [];
+    const itemsPerPage = 10;
+    let currentPage = 1;
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = "login_signup.html";
+      } else {
+        currentUserUid = user.uid;
+        loadPaymentRequests();
+      }
+    });
+
+    async function loadPaymentRequests() {
+      paymentRequestsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><div>Loading payment requests...</div></div>';
+      
+      try {
+        // শুধুমাত্র লগইন করা ইউজারের ডেটা লোড করব
+        const requestsRef = ref(db, `users/${currentUserUid}`);
+        const snapshot = await get(requestsRef);
+        
+        if (!snapshot.exists()) {
+          showEmptyState("No payment requests found");
+          return;
+        }
+        
+        allPaymentRequests = [];
+        const shop = snapshot.val();
+        
+        if (shop.customers) {
+          for (const customerId in shop.customers) {
+            const customer = shop.customers[customerId];
+            if (customer.payment_requests) {
+              for (const requestId in customer.payment_requests) {
+                const request = customer.payment_requests[requestId];
+                allPaymentRequests.push({
+                  ...request,
+                  id: requestId,
+                  shopId: currentUserUid,
+                  customerId,
+                  shopName: shop.dokan_name || "Unknown Shop",
+                  customerName: customer.name || "Unknown Customer",
+                  customerPhone: customer.phone || "N/A"
+                });
+              }
+            }
+          }
+        }
+        
+        allPaymentRequests.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        
+        filterAndRenderRequests();
+        setupPagination();
+      } catch (error) {
+        console.error(error);
+        showEmptyState("Error loading payment requests");
+      }
+    }
+
+    function filterAndRenderRequests() {
+      const statusFilter = filterStatus.value;
+      const searchTerm = searchInput.value.toLowerCase();
+      
+      let filteredRequests = allPaymentRequests;
+      if (statusFilter !== 'all') {
+        filteredRequests = filteredRequests.filter(req => req.status === statusFilter);
+      }
+      if (searchTerm) {
+        filteredRequests = filteredRequests.filter(req =>
+          (req.customerName && req.customerName.toLowerCase().includes(searchTerm)) ||
+          (req.customerPhone && req.customerPhone.includes(searchTerm)) ||
+          (req.method && req.method.toLowerCase().includes(searchTerm))
+        );
+      }
+      
+      const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+      currentPage = Math.min(currentPage, totalPages);
+      const startIdx = (currentPage - 1) * itemsPerPage;
+      const paginatedRequests = filteredRequests.slice(startIdx, startIdx + itemsPerPage);
+      
+      if (paginatedRequests.length === 0) {
+        showEmptyState("No payment requests match your criteria");
+        return;
+      }
+      
+      renderPaymentRequests(paginatedRequests);
+    }
+
+    function renderPaymentRequests(requests) {
+      paymentRequestsContainer.innerHTML = '';
+      
+      requests.forEach(request => {
+        const requestEl = document.createElement('div');
+        requestEl.className = 'payment-request';
+        
+        const date = new Date(request.timestamp);
+        const dateStr = date.toLocaleString('bn-BD', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+        
+        const statusClass = `status-${request.status || 'pending'}`;
+        
+        requestEl.innerHTML = `
+          <div class="payment-header">
+            <div class="payment-title">${escapeHtml(request.method || 'Unknown Method')}</div>
+            <div class="payment-meta">${dateStr}</div>
+          </div>
+          <div class="payment-header">
+            <div class="payment-amount">৳${escapeHtml(request.amount || '0')}</div>
+            <span class="payment-status ${statusClass}">${request.status || 'pending'}</span>
+          </div>
+          ${request.note ? `<div class="payment-meta">Note: ${escapeHtml(request.note)}</div>` : ''}
+          <div class="customer-info">
+            <div><strong>Customer:</strong> ${escapeHtml(request.customerName)} (${escapeHtml(request.customerPhone)})</div>
+            <div><strong>Shop:</strong> ${escapeHtml(request.shopName)}</div>
+          </div>
+        `;
+        
+        if (request.status === 'pending') {
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'payment-actions';
+          actionsDiv.innerHTML = `
+            <button class="primary" data-id="${request.id}" data-shop="${request.shopId}" data-customer="${request.customerId}">
+              <i class="fas fa-check"></i> Approve
+            </button>
+            <button class="danger" data-id="${request.id}" data-shop="${request.shopId}" data-customer="${request.customerId}">
+              <i class="fas fa-times"></i> Reject
+            </button>
+          `;
+          requestEl.appendChild(actionsDiv);
+        }
+        
+        paymentRequestsContainer.appendChild(requestEl);
+      });
+      
+      document.querySelectorAll('.payment-actions button.primary').forEach(btn => {
+        btn.addEventListener('click', () => approvePaymentRequest(
+          btn.getAttribute('data-id'),
+          btn.getAttribute('data-shop'),
+          btn.getAttribute('data-customer')
+        ));
+      });
+      
+      document.querySelectorAll('.payment-actions button.danger').forEach(btn => {
+        btn.addEventListener('click', () => rejectPaymentRequest(
+          btn.getAttribute('data-id'),
+          btn.getAttribute('data-shop'),
+          btn.getAttribute('data-customer')
+        ));
+      });
+    }
+
+    async function approvePaymentRequest(requestId, shopId, customerId) {
+      if (!confirm('Are you sure you want to approve this payment request?')) return;
+      
+      try {
+        const requestRef = ref(db, `users/${shopId}/customers/${customerId}/payment_requests/${requestId}`);
+        await update(requestRef, { status: 'approved' });
+        
+        const requestSnap = await get(requestRef);
+        if (!requestSnap.exists()) throw new Error('Request not found');
+        const request = requestSnap.val();
+        
+        const transactionRef = ref(db, `users/${shopId}/customers/${customerId}/transactions`);
+        const newTransactionRef = push(transactionRef);
+        
+        await set(newTransactionRef, {
+          amount: request.amount,
+          type: "payment",
+          description: `Payment via ${request.method} (request ID: ${requestId})`,
+          timestamp: Date.now(),
+          admin_uid: currentUserUid
+        });
+        
+        alert('Payment approved successfully! The customer balance has been updated.');
+        loadPaymentRequests();
+      } catch (error) {
+        console.error(error);
+        alert('Failed to approve payment. Please try again.');
+      }
+    }
+
+    async function rejectPaymentRequest(requestId, shopId, customerId) {
+      if (!confirm('Are you sure you want to reject this payment request?')) return;
+      
+      try {
+        const requestRef = ref(db, `users/${shopId}/customers/${customerId}/payment_requests/${requestId}`);
+        await update(requestRef, { status: 'rejected' });
+        
+        alert('Payment request rejected successfully!');
+        loadPaymentRequests();
+      } catch (error) {
+        console.error(error);
+        alert('Failed to reject payment. Please try again.');
+      }
+    }
+
+    function showEmptyState(message) {
+      paymentRequestsContainer.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <div>${message}</div>
+        </div>
+      `;
+    }
+
+    function setupPagination() {
+      const statusFilter = filterStatus.value;
+      const searchTerm = searchInput.value.toLowerCase();
+      
+      let filteredRequests = allPaymentRequests;
+      if (statusFilter !== 'all') {
+        filteredRequests = filteredRequests.filter(req => req.status === statusFilter);
+      }
+      if (searchTerm) {
+        filteredRequests = filteredRequests.filter(req => 
+          (req.customerName && req.customerName.toLowerCase().includes(searchTerm)) ||
+          (req.customerPhone && req.customerPhone.includes(searchTerm)) ||
+          (req.method && req.method.toLowerCase().includes(searchTerm))
+        );
+      }
+      
+      const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+      pagination.innerHTML = '';
+      
+      if (totalPages <= 1) return;
+      
+      const prevBtn = document.createElement('button');
+      prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          filterAndRenderRequests();
+          setupPagination();
+        }
+      });
+      pagination.appendChild(prevBtn);
+      
+      for (let i = 1; i <= totalPages; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.className = currentPage === i ? 'active' : '';
+        pageBtn.addEventListener('click', () => {
+          currentPage = i;
+          filterAndRenderRequests();
+          setupPagination();
+        });
+        pagination.appendChild(pageBtn);
+      }
+      
+      const nextBtn = document.createElement('button');
+      nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          filterAndRenderRequests();
+          setupPagination();
+        }
+      });
+      pagination.appendChild(nextBtn);
+    }
+
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    filterStatus.addEventListener('change', () => {
+      currentPage = 1;
+      filterAndRenderRequests();
+      setupPagination();
+    });
+    
+    searchInput.addEventListener('input', () => {
+      currentPage = 1;
+      filterAndRenderRequests();
+      setupPagination();
+    });
+    
+    btnRefresh.addEventListener('click', loadPaymentRequests);
+  </script>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .reports-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .reports-header {
+      margin-bottom: 30px;
+    }
+    
+    .reports-title {
+      font-size: 24px;
+      color: #2c3e50;
+      margin: 0;
+    }
+    
+    .report-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .report-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .report-card h3 {
+      margin-top: 0;
+      color: #555;
+      font-size: 18px;
+    }
+    
+    .report-value {
+      font-size: 28px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    
+    .chart-container {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .chart-title {
+      margin-top: 0;
+      color: #555;
+    }
+    
+    .filters {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .filter-group label {
+      font-weight: 600;
+    }
+    
+    .filter-group select,
+    .filter-group input {
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+    }
+    
+    .apply-btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    .positive {
+      color: #e74c3c;
+    }
+    
+    .negative {
+      color: #2ecc71;
+    }
+  </style>
+</head>
+<body>
+  <div class="reports-container">
+    <div class="reports-header">
+      <h1 class="reports-title">Reports & Analytics</h1>
+    </div>
+    
+    <div class="filters">
+      <div class="filter-group">
+        <label for="reportType">Report Type:</label>
+        <select id="reportType">
+          <option value="overview">Overview</option>
+          <option value="customers">Customers</option>
+          <option value="transactions">Transactions</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="timePeriod">Time Period:</label>
+        <select id="timePeriod">
+          <option value="7days">Last 7 Days</option>
+          <option value="30days">Last 30 Days</option>
+          <option value="90days">Last 90 Days</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+      
+      <button class="apply-btn" onclick="loadReports()">Apply Filters</button>
+    </div>
+    
+    <div class="report-cards">
+      <div class="report-card">
+        <h3>Total Baki</h3>
+        <div class="report-value positive" id="totalBaki">৳0.00</div>
+        <div>Amount owed by customers</div>
+      </div>
+      
+      <div class="report-card">
+        <h3>Total Payments</h3>
+        <div class="report-value negative" id="totalPayments">৳0.00</div>
+        <div>Amount received from customers</div>
+      </div>
+      
+      <div class="report-card">
+        <h3>Net Balance</h3>
+        <div class="report-value" id="netBalance">৳0.00</div>
+        <div>Current outstanding balance</div>
+      </div>
+    </div>
+    
+    <div class="chart-container">
+      <h3 class="chart-title">Baki vs Payments</h3>
+      <canvas id="bakiChart"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <h3 class="chart-title">Top Customers by Baki</h3>
+      <canvas id="customersChart"></canvas>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let bakiChart = null;
+    let customersChart = null;
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = "../auth/login_signup.html";
+        return;
+      }
+      
+      loadReports();
+    });
+    
+    window.loadReports = async function() {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      
+      // Load summary data
+      const summaryRef = ref(db, `users/${uid}/summary`);
+      const summarySnap = await get(summaryRef);
+      
+      if (summarySnap.exists()) {
+        const summary = summarySnap.val();
+        document.getElementById("totalBaki").textContent = `৳${(summary.total_baki || 0).toFixed(2)}`;
+        document.getElementById("totalPayments").textContent = `৳${(summary.total_payment || 0).toFixed(2)}`;
+        
+        const netBalance = (summary.total_baki || 0) - (summary.total_payment || 0);
+        const netBalanceElement = document.getElementById("netBalance");
+        netBalanceElement.textContent = `৳${Math.abs(netBalance).toFixed(2)}`;
+        netBalanceElement.className = `report-value ${netBalance > 0 ? 'positive' : 'negative'}`;
+      }
+      
+      // Load customers and transactions for charts
+      const customersRef = ref(db, `users/${uid}/customers`);
+      const customersSnap = await get(customersRef);
+      
+      if (customersSnap.exists()) {
+        const customers = customersSnap.val();
+        const customersData = [];
+        
+        // Calculate baki for each customer
+        for (const [customerId, customer] of Object.entries(customers)) {
+          let totalBaki = 0;
+          let totalPayment = 0;
+          
+          const transactionsRef = ref(db, `users/${uid}/customers/${customerId}/transactions`);
+          const transactionsSnap = await get(transactionsRef);
+          
+          if (transactionsSnap.exists()) {
+            const transactions = transactionsSnap.val();
+            Object.values(transactions).forEach(txn => {
+              const amount = parseFloat(txn.amount);
+              if (txn.type === "baki") totalBaki += amount;
+              else if (txn.type === "payment") totalPayment += amount;
+            });
+          }
+          
+          const netBaki = totalBaki - totalPayment;
+          if (netBaki > 0) {
+            customersData.push({
+              name: customer.name,
+              baki: netBaki
+            });
+          }
+        }
+        
+        // Sort by baki (descending) and take top 5
+        customersData.sort((a, b) => b.baki - a.baki);
+        const topCustomers = customersData.slice(0, 5);
+        
+        // Update charts
+        updateCharts(topCustomers);
+      }
+    };
+    
+    function updateCharts(topCustomers) {
+      // Baki vs Payments Chart
+      const bakiCtx = document.getElementById('bakiChart').getContext('2d');
+      
+      if (bakiChart) {
+        bakiChart.destroy();
+      }
+      
+      bakiChart = new Chart(bakiCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Baki', 'Payments'],
+          datasets: [{
+            label: 'Amount (৳)',
+            data: [
+              parseFloat(document.getElementById('totalBaki').textContent.replace('৳', '')),
+              parseFloat(document.getElementById('totalPayments').textContent.replace('৳', ''))
+            ],
+            backgroundColor: [
+              'rgba(231, 76, 60, 0.7)',
+              'rgba(46, 204, 113, 0.7)'
+            ],
+            borderColor: [
+              'rgba(231, 76, 60, 1)',
+              'rgba(46, 204, 113, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+      
+      // Top Customers Chart
+      const customersCtx = document.getElementById('customersChart').getContext('2d');
+      
+      if (customersChart) {
+        customersChart.destroy();
+      }
+      
+      if (topCustomers.length > 0) {
+        customersChart = new Chart(customersCtx, {
+          type: 'bar',
+          data: {
+            labels: topCustomers.map(c => c.name),
+            datasets: [{
+              label: 'Baki (৳)',
+              data: topCustomers.map(c => c.baki),
+              backgroundColor: 'rgba(52, 152, 219, 0.7)',
+              borderColor: 'rgba(52, 152, 219, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      } else {
+        document.getElementById('customersChart').parentElement.innerHTML = `
+          <h3 class="chart-title">Top Customers by Baki</h3>
+          <p>No customers with outstanding baki found.</p>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

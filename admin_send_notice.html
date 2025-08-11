@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Send Notice</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+  <style>
+    :root{
+      --nav-height: 60px;
+      --sidebar-width: 250px;
+      --accent: #2c3e50;
+      --card: #ffffff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:#f3f6fa;
+      color:#222;
+    }
+    .topbar{
+      height:var(--nav-height);
+      background:var(--accent);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 16px;
+      position:sticky;
+      top:0;
+      z-index:100;
+    }
+    .topbar .title{font-weight:700}
+    .container{
+      max-width:1100px;
+      margin:18px auto;
+      padding:12px;
+    }
+
+    .card{
+      background:var(--card);
+      border-radius:10px;
+      padding:14px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom:14px;
+    }
+
+    .flex{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .col{
+      flex:1;
+    }
+
+    /* customer list */
+    .customers-list{
+      max-height:420px;
+      overflow:auto;
+      border:1px solid #e6e9ee;
+      border-radius:8px;
+      padding:8px;
+    }
+    .customer-item{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:8px;
+      border-bottom:1px dashed #eef2f6;
+    }
+    .customer-item:last-child{border-bottom:none}
+    .customer-name{font-weight:600}
+    .small{font-size:13px;color:#666}
+
+    /* templates */
+    .template-row{display:flex;gap:8px;align-items:flex-start}
+    textarea{width:100%;min-height:80px;padding:8px;border-radius:6px;border:1px solid #d7dbe0;resize:vertical}
+    input[type="text"], input[type="search"]{width:100%;padding:8px;border-radius:6px;border:1px solid #d7dbe0}
+
+    button{
+      background:var(--accent);
+      color:#fff;
+      border:none;
+      padding:8px 12px;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    button.ghost{background:#fff;color:var(--accent);border:1px solid #d7dbe0}
+    .right{display:flex;gap:8px}
+
+    .notice-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .notice-meta .btn-small{padding:6px 10px;font-size:14px}
+
+    .toast{
+      position:fixed;
+      right:16px;
+      bottom:16px;
+      background:#222;color:#fff;padding:8px 12px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.2);
+      display:none;z-index:9999;
+    }
+
+    @media (max-width:720px){
+      .flex{flex-direction:column;align-items:stretch}
+      .right{width:100%;justify-content:space-between}
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="title">Shop Notices — Admin</div>
+    <div id="adminEmail" class="small"></div>
+  </div>
+
+  <div class="container">
+
+    <!-- 1: Templates & Compose -->
+    <div class="card">
+      <h3>Compose Notice</h3>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="flex:1;min-width:260px">
+          <label class="small">Choose Template</label>
+          <select id="templatesSelect" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d7dbe0">
+            <option value="">-- Select saved template --</option>
+          </select>
+        </div>
+
+        <div style="flex:0 0 220px">
+          <label class="small">Template actions</label>
+          <div style="display:flex;gap:8px">
+            <button id="btnLoadTemplate" class="ghost">Load</button>
+            <button id="btnDeleteTemplate" class="ghost">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="template-row" style="gap:12px">
+        <div style="flex:1">
+          <label class="small">Notice Text</label>
+          <textarea id="noticeText" placeholder="এখানে নোটিস লিখুন — উদাহরণ: দোকান শুক্রবার বন্ধ থাকবে।"></textarea>
+        </div>
+
+        <div style="width:220px">
+          <label class="small">Save as template name (optional)</label>
+          <input type="text" id="templateName" placeholder="Template name (e.g., Closed for Holiday)"/>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button id="btnSaveTemplate" class="btn-small">Save Template</button>
+            <button id="btnClear" class="ghost">Clear Text</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px" class="notice-meta">
+        <div class="small">Preview:</div>
+        <div id="previewBox" style="padding:8px;border-radius:6px;background:#fbfcff;border:1px solid #eef2f6;min-width:220px"></div>
+        <div style="margin-left:auto" class="right">
+          <button id="btnSendSelected">Send to Selected</button>
+          <button id="btnSendAll" class="ghost">Send to All</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2: Customers list -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Customers</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="searchCustomer" type="search" placeholder="Search name / phone" />
+          <button id="selectAllBtn" class="ghost">Select All</button>
+          <button id="deselectAllBtn" class="ghost">Deselect All</button>
+        </div>
+      </div>
+
+      <div class="customers-list" id="customersList">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- 3: Sent log (optional) -->
+    <div class="card">
+      <h3>Last activity</h3>
+      <div id="activityLog" class="small">No activity yet.</div>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, child, push, set, onValue, remove, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // UI elements
+    const customersListEl = document.getElementById("customersList");
+    const templatesSelect = document.getElementById("templatesSelect");
+    const noticeText = document.getElementById("noticeText");
+    const templateName = document.getElementById("templateName");
+    const previewBox = document.getElementById("previewBox");
+    const btnSaveTemplate = document.getElementById("btnSaveTemplate");
+    const btnLoadTemplate = document.getElementById("btnLoadTemplate");
+    const btnDeleteTemplate = document.getElementById("btnDeleteTemplate");
+    const btnClear = document.getElementById("btnClear");
+    const btnSendSelected = document.getElementById("btnSendSelected");
+    const btnSendAll = document.getElementById("btnSendAll");
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    const deselectAllBtn = document.getElementById("deselectAllBtn");
+    const searchCustomer = document.getElementById("searchCustomer");
+    const activityLog = document.getElementById("activityLog");
+    const toast = document.getElementById("toast");
+    const adminEmail = document.getElementById("adminEmail");
+
+    let currentUser = null;
+    let customersCache = {}; // {customerId: {...}}
+    let templatesCache = {}; // {templateId: {name, text}}
+
+    function showToast(msg, time = 2500){
+      toast.textContent = msg;
+      toast.style.display = "block";
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(()=> toast.style.display = "none", time);
+    }
+
+    function formatDateNow(){
+      const d = new Date();
+      const Y = d.getFullYear();
+      const M = String(d.getMonth()+1).padStart(2,'0');
+      const D = String(d.getDate()).padStart(2,'0');
+      const h = String(d.getHours()).padStart(2,'0');
+      const m = String(d.getMinutes()).padStart(2,'0');
+      return `${Y}-${M}-${D} ${h}:${m}`;
+    }
+
+    // keep preview updated
+    noticeText.addEventListener("input", ()=> previewBox.textContent = noticeText.value || "— Preview —");
+
+    // auth check
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // redirect to login
+        window.location.href = "login_signup.html";
+        return;
+      }
+      currentUser = user;
+      adminEmail.textContent = user.email;
+      loadCustomers();
+      loadTemplates();
+    });
+
+    // load customers for this admin user
+    async function loadCustomers(){
+      customersListEl.innerHTML = "Loading customers...";
+      customersCache = {};
+      try {
+        const snap = await get(child(ref(db), `users/${currentUser.uid}/customers`));
+        customersListEl.innerHTML = "";
+        if (!snap.exists()) {
+          customersListEl.innerHTML = "<div class='small' style='padding:8px'>No customers yet.</div>";
+          return;
+        }
+        const data = snap.val();
+        Object.entries(data).forEach(([cid, c])=>{
+          customersCache[cid] = { id: cid, ...c };
+        });
+        renderCustomerList(customersCache);
+      } catch(err){
+        console.error(err);
+        customersListEl.innerHTML = "<div class='small' style='padding:8px;color:red'>Error loading customers</div>";
+      }
+    }
+
+    function renderCustomerList(listObj){
+      customersListEl.innerHTML = "";
+      const entries = Object.entries(listObj);
+      if (!entries.length) {
+        customersListEl.innerHTML = "<div class='small' style='padding:8px'>No customers found.</div>";
+        return;
+      }
+      entries.forEach(([cid, c])=>{
+        const div = document.createElement("div");
+        div.className = "customer-item";
+        div.innerHTML = `
+          <input type="checkbox" data-id="${cid}" />
+          <div style="flex:1">
+            <div class="customer-name">${escapeHtml(c.name || "—")}</div>
+            <div class="small">${escapeHtml(c.phone || "")} • ${escapeHtml(c.address || "")}</div>
+          </div>
+          <div style="min-width:120px;text-align:right">
+            <div class="small">ID: <span style="font-weight:600">${cid}</span></div>
+          </div>
+        `;
+        customersListEl.appendChild(div);
+      });
+    }
+
+    // simple escape to avoid injecting HTML from DB (defensive)
+    function escapeHtml(s=""){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;") }
+
+    // templates
+    async function loadTemplates(){
+      templatesSelect.innerHTML = `<option value="">-- Select saved template --</option>`;
+      templatesCache = {};
+      try {
+        const snap = await get(child(ref(db), `users/${currentUser.uid}/notice_templates`));
+        if (!snap.exists()) return;
+        const data = snap.val();
+        Object.entries(data).forEach(([tid, t])=>{
+          templatesCache[tid] = t;
+          const opt = document.createElement("option");
+          opt.value = tid;
+          opt.textContent = t.name || (t.text?.slice(0,40) + (t.text?.length>40?"…":""));
+          templatesSelect.appendChild(opt);
+        });
+      } catch(err){ console.error(err) }
+    }
+
+    // Save template
+    btnSaveTemplate.addEventListener("click", async ()=>{
+      const text = noticeText.value.trim();
+      if (!text) { showToast("Notice text empty"); return; }
+      const name = templateName.value.trim() || (`Template ${new Date().toLocaleString()}`);
+      try {
+        const newRef = push(ref(db, `users/${currentUser.uid}/notice_templates`));
+        await set(newRef, { name, text, created_at: formatDateNow() });
+        showToast("Template saved");
+        templateName.value = "";
+        await loadTemplates();
+      } catch(err){
+        console.error(err); showToast("Failed to save template");
+      }
+    });
+
+    // Load template text into editor
+    btnLoadTemplate.addEventListener("click", ()=>{
+      const tid = templatesSelect.value;
+      if (!tid) { showToast("Select a template first"); return; }
+      noticeText.value = templatesCache[tid].text || "";
+      previewBox.textContent = noticeText.value;
+      showToast("Template loaded");
+    });
+
+    btnDeleteTemplate.addEventListener("click", async ()=>{
+      const tid = templatesSelect.value;
+      if (!tid) { showToast("Select a template to delete"); return; }
+      if (!confirm("Are you sure to delete this template?")) return;
+      try {
+        await remove(ref(db, `users/${currentUser.uid}/notice_templates/${tid}`));
+        showToast("Template deleted");
+        await loadTemplates();
+      } catch(err){ console.error(err); showToast("Failed to delete") }
+    });
+
+    btnClear.addEventListener("click", ()=> { noticeText.value = ""; previewBox.textContent = "— Preview —"; });
+
+    // select/deselect all
+    selectAllBtn.addEventListener("click", ()=> {
+      document.querySelectorAll('#customersList input[type="checkbox"]').forEach(cb => cb.checked = true);
+    });
+    deselectAllBtn.addEventListener("click", ()=> {
+      document.querySelectorAll('#customersList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    });
+
+    // search filter
+    searchCustomer.addEventListener("input", (e)=>{
+      const q = e.target.value.trim().toLowerCase();
+      const filtered = {};
+      Object.entries(customersCache).forEach(([cid,c])=>{
+        const hay = `${c.name || ""} ${c.phone || ""} ${c.address || ""}`.toLowerCase();
+        if (!q || hay.includes(q)) filtered[cid] = c;
+      });
+      renderCustomerList(filtered);
+    });
+
+    // send helpers
+    async function sendNoticeToCustomer(shopUid, customerId, noticeObj){
+      // push under customers/{customerId}/notices
+      const nref = push(ref(db, `users/${shopUid}/customers/${customerId}/notices`));
+      await set(nref, noticeObj);
+    }
+
+    async function gatherSelectedCustomerIds(){
+      const checked = Array.from(document.querySelectorAll('#customersList input[type="checkbox"]:checked'));
+      return checked.map(cb => cb.getAttribute("data-id"));
+    }
+
+    // send to selected
+    btnSendSelected.addEventListener("click", async ()=>{
+      const text = noticeText.value.trim();
+      if (!text) { showToast("Write notice text first"); return; }
+      const ids = await gatherSelectedCustomerIds();
+      if (!ids.length) { showToast("No customer selected"); return; }
+      if (!confirm(`Send notice to ${ids.length} customers?`)) return;
+      const noticeObj = { text, sent_at: formatDateNow() };
+      try {
+        for (const cid of ids){
+          await sendNoticeToCustomer(currentUser.uid, cid, noticeObj);
+        }
+        activityLog.textContent = `Last: Sent to ${ids.length} customers at ${formatDateNow()}`;
+        showToast("Sent to selected");
+      } catch(err){ console.error(err); showToast("Failed to send") }
+    });
+
+    // send to all
+    btnSendAll.addEventListener("click", async ()=>{
+      const text = noticeText.value.trim();
+      if (!text) { showToast("Write notice text first"); return; }
+      if (!confirm("Send notice to ALL customers?")) return;
+      const ids = Object.keys(customersCache || {});
+      if (!ids.length) { showToast("No customers available"); return; }
+      const noticeObj = { text, sent_at: formatDateNow() };
+      try {
+        for (const cid of ids){
+          await sendNoticeToCustomer(currentUser.uid, cid, noticeObj);
+        }
+        activityLog.textContent = `Last: Sent to ALL (${ids.length}) at ${formatDateNow()}`;
+        showToast("Sent to all customers");
+      } catch(err){ console.error(err); showToast("Failed to send to all") }
+    });
+
+  </script>
+</body>
+</html>

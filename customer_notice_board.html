@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Customer Dashboard</title>
+  <style>
+    body{margin:0;font-family:Inter,Segoe UI,system-ui,Arial;background:#f4f7fb;color:#1a1a1a}
+    .wrap{max-width:920px;margin:28px auto;padding:12px}
+    .card{background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 20px rgba(16,24,40,0.06)}
+    h1{margin:0 0 8px 0;font-size:20px}
+    .form-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+    input, select{padding:10px;border:1px solid #e2e8f0;border-radius:8px;width:100%}
+    button{background:#2c3e50;color:#fff;padding:10px 14px;border-radius:8px;border:none;cursor:pointer}
+    .small{font-size:13px;color:#6b7280}
+    .notice-list{margin-top:14px}
+    .notice-item{padding:12px;border-radius:8px;border:1px solid #eef2f6;background:#fcfeff;margin-bottom:10px}
+    .notice-date{font-size:13px;color:#6b7280;margin-bottom:6px}
+    .login-actions{display:flex;gap:10px;align-items:center}
+    .logout{background:#fff;border:1px solid #e2e8f0;color:#333}
+    .empty{padding:20px;text-align:center;color:#6b7280}
+    .tab-buttons{display:flex;gap:8px;margin-top:8px}
+    .tab-buttons button{background:#34495e;color:#fff;padding:6px 10px;font-size:13px}
+    .tab-buttons button.active{background:#2ecc71}
+    .balance-box{padding:10px;background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46;border-radius:8px;margin-bottom:12px;font-weight:bold}
+    .request-form{margin-top:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
+    .request-form h3{margin:0 0 12px 0;font-size:16px}
+    .success-message{padding:10px;background:#d1fae5;color:#065f46;border-radius:6px;margin-top:12px;display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Login Card -->
+    <div class="card" id="loginCard">
+      <h1>Customer Dashboard — Login</h1>
+      <p class="small">Login with your <strong>Phone</strong> and shop <strong>EMEI</strong>.</p>
+      <div style="margin-top:6px">
+        <label class="small">Shop EMEI</label>
+        <input id="shopEmei" placeholder="Shop EMEI number"/>
+      </div>
+      <div style="margin-top:8px">
+        <label class="small">Your Phone</label>
+        <input id="customerPhone" placeholder="Customer phone number"/>
+      </div>
+      <div style="margin-top:10px" class="login-actions">
+        <button id="btnLogin">Login</button>
+        <button id="btnClear" class="logout">Clear</button>
+      </div>
+      <div id="loginMsg" class="small" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Board Card -->
+    <div class="card" style="margin-top:12px;display:none" id="boardCard">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <h1 id="custName">Customer</h1>
+          <div class="small" id="custMeta">—</div>
+        </div>
+        <div>
+          <button id="btnRefresh" class="small">Refresh</button>
+          <button id="btnLogout" class="small logout">Logout</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tab-buttons">
+        <button id="btnShowNotices" class="active">Notices</button>
+        <button id="btnShowTransactions">Transactions</button>
+        <button id="btnShowPayment">Payment Request</button>
+      </div>
+
+      <!-- Notices -->
+      <div id="noticeContainer" class="notice-list" style="margin-top:12px"></div>
+      
+      <!-- Transactions -->
+      <div id="transactionContainer" class="notice-list" style="margin-top:12px;display:none"></div>
+      
+      <!-- Payment Request -->
+      <div id="paymentContainer" style="margin-top:12px;display:none">
+        <div class="request-form">
+          <h3>Submit Payment Request</h3>
+          <div style="margin-bottom:12px">
+            <label class="small">Payment Method</label>
+            <select id="paymentMethod">
+              <option value="bKash">bKash</option>
+              <option value="Nagad">Nagad</option>
+              <option value="Bank">Bank Transfer</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px">
+            <label class="small">Amount (৳)</label>
+            <input type="number" id="paymentAmount" placeholder="Enter amount">
+          </div>
+          <div style="margin-bottom:12px">
+            <label class="small">Reference/Note (Optional)</label>
+            <input type="text" id="paymentNote" placeholder="Any reference number or note">
+          </div>
+          <button id="btnSubmitPayment">Submit Request</button>
+          <div id="paymentSuccess" class="success-message">
+            Payment request submitted successfully!
+          </div>
+        </div>
+        
+        <div class="notice-list" style="margin-top:20px">
+          <h3 style="margin-bottom:12px">Recent Requests</h3>
+          <div id="paymentHistory"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, get, child, query, orderByChild, equalTo, push, set } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2eI8wHpjQsd-jOuEvIfW_Om2DnxUixHI",
+      authDomain: "inc-project-65096.firebaseapp.com",
+      databaseURL: "https://inc-project-65096-default-rtdb.firebaseio.com",
+      projectId: "inc-project-65096",
+      storageBucket: "inc-project-65096.appspot.com",
+      messagingSenderId: "164350074126",
+      appId: "1:164350074126:web:28144737a66cb8055f8b5f",
+      measurementId: "G-EBPRH80411"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // DOM Elements
+    const shopEmeiEl = document.getElementById("shopEmei");
+    const customerPhoneEl = document.getElementById("customerPhone");
+    const btnLogin = document.getElementById("btnLogin");
+    const btnClear = document.getElementById("btnClear");
+    const btnLogout = document.getElementById("btnLogout");
+    const btnRefresh = document.getElementById("btnRefresh");
+    const loginMsg = document.getElementById("loginMsg");
+    const loginCard = document.getElementById("loginCard");
+    const boardCard = document.getElementById("boardCard");
+    const custNameEl = document.getElementById("custName");
+    const custMeta = document.getElementById("custMeta");
+    const noticeContainer = document.getElementById("noticeContainer");
+    const transactionContainer = document.getElementById("transactionContainer");
+    const paymentContainer = document.getElementById("paymentContainer");
+    const btnShowNotices = document.getElementById("btnShowNotices");
+    const btnShowTransactions = document.getElementById("btnShowTransactions");
+    const btnShowPayment = document.getElementById("btnShowPayment");
+    const paymentMethod = document.getElementById("paymentMethod");
+    const paymentAmount = document.getElementById("paymentAmount");
+    const paymentNote = document.getElementById("paymentNote");
+    const btnSubmitPayment = document.getElementById("btnSubmitPayment");
+    const paymentSuccess = document.getElementById("paymentSuccess");
+    const paymentHistory = document.getElementById("paymentHistory");
+
+    let currentShopUid = "";
+    let currentCustomerId = "";
+    let currentCustomerData = null;
+
+    async function customerLogin(){
+      const emei = String(shopEmeiEl.value || "").trim();
+      const phone = String(customerPhoneEl.value || "").trim();
+      loginMsg.textContent = "";
+      if (!emei || !phone){ loginMsg.textContent = "EMEI and phone required"; return; }
+
+      loginMsg.textContent = "Searching shop...";
+      try {
+        const usersRef = ref(db, 'users');
+        const q = query(usersRef, orderByChild('shop_emei'), equalTo(emei));
+        const snap = await get(q);
+        if (!snap.exists()){ loginMsg.textContent = "No shop found with this EMEI."; return; }
+
+        const [shopUid] = Object.keys(snap.val());
+        loginMsg.textContent = "Shop found. Searching customer...";
+
+        const custSnap = await get(child(ref(db), `users/${shopUid}/customers`));
+        if (!custSnap.exists()){ loginMsg.textContent = "Shop has no customers."; return; }
+
+        let found = null;
+        for (const [cid, c] of Object.entries(custSnap.val())){
+          if (String(c.phone || "").trim() === phone){
+            found = { shopUid, customerId: cid, customer: c };
+            break;
+          }
+        }
+        if (!found){ loginMsg.textContent = "Customer phone not found in this shop."; return; }
+
+        showBoard(found.shopUid, found.customerId, found.customer);
+        localStorage.setItem('nb_shopUid', found.shopUid);
+        localStorage.setItem('nb_customerId', found.customerId);
+      } catch(err){
+        console.error(err);
+        loginMsg.textContent = "Error while searching.";
+      }
+    }
+
+    async function showBoard(shopUid, customerId, customerObj){
+      currentShopUid = shopUid;
+      currentCustomerId = customerId;
+      currentCustomerData = customerObj;
+      
+      loginCard.style.display = "none";
+      boardCard.style.display = "block";
+      custNameEl.textContent = (customerObj.name || "Customer");
+      custMeta.textContent = `Phone: ${customerObj.phone || "—"} • Address: ${customerObj.address || "—"}`;
+      await loadNotices(shopUid, customerId);
+    }
+
+    async function loadNotices(shopUid, customerId){
+      noticeContainer.innerHTML = "<div class='small'>Loading notices...</div>";
+      try {
+        const nSnap = await get(child(ref(db), `users/${shopUid}/customers/${customerId}/notices`));
+        if (!nSnap.exists()){ noticeContainer.innerHTML = "<div class='empty'>No notices yet.</div>"; return; }
+        const arr = Object.entries(nSnap.val()).map(([nid, n])=>({ id: nid, ...n }));
+        arr.sort((a,b)=> b.sent_at?.localeCompare(a.sent_at || "") || 0);
+        renderNotices(arr);
+      } catch(err){
+        console.error(err);
+        noticeContainer.innerHTML = "<div class='empty'>Failed to load notices.</div>";
+      }
+    }
+
+    function renderNotices(arr){
+      if (!arr.length){ noticeContainer.innerHTML = "<div class='empty'>No notices.</div>"; return; }
+      noticeContainer.innerHTML = "";
+      arr.forEach(n=>{
+        const div = document.createElement("div");
+        div.className = "notice-item";
+        const dateText = n.sent_at || n.created_at || "—";
+        div.innerHTML = `<div class="notice-date">${escapeHtml(dateText)}</div>
+                         <div>${escapeHtml(n.text || n.message || "")}</div>`;
+        noticeContainer.appendChild(div);
+      });
+    }
+
+    async function loadTransactions(shopUid, customerId){
+      transactionContainer.innerHTML = "<div class='small'>Loading transactions...</div>";
+      try {
+        const tSnap = await get(child(ref(db), `users/${shopUid}/customers/${customerId}/transactions`));
+        if (!tSnap.exists()){ transactionContainer.innerHTML = "<div class='empty'>No transactions yet.</div>"; return; }
+        const arr = Object.entries(tSnap.val()).map(([tid, t])=>({ id: tid, ...t }));
+
+        // Sort newest first by timestamp
+        arr.sort((a,b)=> {
+          if (a.timestamp && b.timestamp) {
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          }
+          return b.id.localeCompare(a.id);
+        });
+
+        // Calculate baki
+        let bakiTotal = 0;
+        arr.forEach(t=>{
+          if (t.type === "baki") bakiTotal += Number(t.amount || 0);
+          if (t.type === "payment") bakiTotal -= Number(t.amount || 0);
+        });
+
+        transactionContainer.innerHTML = `<div class="balance-box">বর্তমান বাকি: ৳${bakiTotal}</div>`;
+
+        // Render transactions
+        arr.forEach((t, index)=>{
+          let dateTimeText = "—";
+          if (t.timestamp) {
+            const date = new Date(t.timestamp);
+            dateTimeText = date.toLocaleString('bn-BD', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+          
+          const div = document.createElement("div");
+          div.className = "notice-item";
+          div.innerHTML = `
+            <div class="notice-date">#${index + 1} • ${escapeHtml(dateTimeText)}</div>
+            <div><strong>${escapeHtml(t.type === "baki" ? "বাকি" : "পরিশোধ")}</strong> — ৳${escapeHtml(t.amount || "0")}</div>
+            <div class="small">${escapeHtml(t.description || "")}</div>
+          `;
+          transactionContainer.appendChild(div);
+        });
+      } catch(err){
+        console.error(err);
+        transactionContainer.innerHTML = "<div class='empty'>Failed to load transactions.</div>";
+      }
+    }
+
+    async function loadPaymentRequests() {
+      paymentHistory.innerHTML = "<div class='small'>Loading payment requests...</div>";
+      try {
+        const requestsRef = ref(db, `users/${currentShopUid}/customers/${currentCustomerId}/payment_requests`);
+        const snap = await get(requestsRef);
+        
+        if (!snap.exists()) {
+          paymentHistory.innerHTML = "<div class='empty'>No payment requests yet.</div>";
+          return;
+        }
+        
+        const requests = Object.entries(snap.val()).map(([id, r]) => ({ id, ...r }));
+        requests.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        paymentHistory.innerHTML = "";
+        
+        requests.forEach((req, index) => {
+          const date = new Date(req.timestamp);
+          const dateStr = date.toLocaleString('bn-BD', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
+          const div = document.createElement("div");
+          div.className = "notice-item";
+          div.innerHTML = `
+            <div class="notice-date">#${index + 1} • ${dateStr}</div>
+            <div><strong>${escapeHtml(req.method)}</strong> — ৳${escapeHtml(req.amount)}</div>
+            <div class="small">Status: <span style="color:${req.status === 'approved' ? 'green' : req.status === 'rejected' ? 'red' : 'orange'}">${req.status}</span></div>
+            ${req.note ? `<div class="small">Note: ${escapeHtml(req.note)}</div>` : ''}
+          `;
+          paymentHistory.appendChild(div);
+        });
+      } catch (err) {
+        console.error(err);
+        paymentHistory.innerHTML = "<div class='empty'>Failed to load payment requests.</div>";
+      }
+    }
+
+    async function submitPaymentRequest() {
+      const method = paymentMethod.value;
+      const amount = parseFloat(paymentAmount.value);
+      const note = paymentNote.value.trim();
+      
+      if (!amount || amount <= 0) {
+        alert("Please enter a valid amount");
+        return;
+      }
+      
+      btnSubmitPayment.disabled = true;
+      btnSubmitPayment.textContent = "Submitting...";
+      
+      try {
+        const requestData = {
+          method,
+          amount,
+          status: "pending",
+          timestamp: Date.now(),
+          customerName: currentCustomerData.name || "",
+          customerPhone: currentCustomerData.phone || ""
+        };
+        
+        if (note) requestData.note = note;
+        
+        await push(ref(db, `users/${currentShopUid}/customers/${currentCustomerId}/payment_requests`), requestData);
+        
+        // Show success message
+        paymentSuccess.style.display = "block";
+        setTimeout(() => {
+          paymentSuccess.style.display = "none";
+        }, 3000);
+        
+        // Clear form
+        paymentAmount.value = "";
+        paymentNote.value = "";
+        
+        // Refresh payment history
+        await loadPaymentRequests();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to submit payment request");
+      } finally {
+        btnSubmitPayment.disabled = false;
+        btnSubmitPayment.textContent = "Submit Request";
+      }
+    }
+
+    function escapeHtml(s=""){ 
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;"); 
+    }
+
+    // Event Listeners
+    btnLogin.addEventListener("click", customerLogin);
+    btnClear.addEventListener("click", ()=>{ shopEmeiEl.value=""; customerPhoneEl.value=""; loginMsg.textContent=""; });
+    btnRefresh.addEventListener("click", async ()=>{
+      const shopUid = localStorage.getItem('nb_shopUid');
+      const customerId = localStorage.getItem('nb_customerId');
+      if (!shopUid || !customerId) return alert("No active session");
+      const cSnap = await get(child(ref(db), `users/${shopUid}/customers/${customerId}`));
+      if (cSnap.exists()) showBoard(shopUid, customerId, cSnap.val());
+    });
+    btnLogout.addEventListener("click", ()=>{
+      localStorage.removeItem('nb_shopUid');
+      localStorage.removeItem('nb_customerId');
+      boardCard.style.display = "none";
+      loginCard.style.display = "block";
+      noticeContainer.innerHTML = "";
+      transactionContainer.innerHTML = "";
+      paymentContainer.innerHTML = "";
+      loginMsg.textContent = "Logged out.";
+    });
+
+    btnShowNotices.addEventListener("click", ()=>{
+      btnShowNotices.classList.add("active");
+      btnShowTransactions.classList.remove("active");
+      btnShowPayment.classList.remove("active");
+      noticeContainer.style.display = "block";
+      transactionContainer.style.display = "none";
+      paymentContainer.style.display = "none";
+    });
+    
+    btnShowTransactions.addEventListener("click", ()=>{
+      btnShowTransactions.classList.add("active");
+      btnShowNotices.classList.remove("active");
+      btnShowPayment.classList.remove("active");
+      noticeContainer.style.display = "none";
+      transactionContainer.style.display = "block";
+      paymentContainer.style.display = "none";
+      if (currentShopUid && currentCustomerId) loadTransactions(currentShopUid, currentCustomerId);
+    });
+    
+    btnShowPayment.addEventListener("click", ()=>{
+      btnShowPayment.classList.add("active");
+      btnShowNotices.classList.remove("active");
+      btnShowTransactions.classList.remove("active");
+      noticeContainer.style.display = "none";
+      transactionContainer.style.display = "none";
+      paymentContainer.style.display = "block";
+      if (currentShopUid && currentCustomerId) loadPaymentRequests();
+    });
+
+    btnSubmitPayment.addEventListener("click", submitPaymentRequest);
+
+    // Initialize from session
+    (async function initFromSession(){
+      const shopUid = localStorage.getItem('nb_shopUid');
+      const customerId = localStorage.getItem('nb_customerId');
+      if (shopUid && customerId){
+        try {
+          const cSnap = await get(child(ref(db), `users/${shopUid}/customers/${customerId}`));
+          if (cSnap.exists()) showBoard(shopUid, customerId, cSnap.val());
+        } catch(err){ console.error(err) }
+      }
+    })();
+  </script>
+</body>
+</html>
